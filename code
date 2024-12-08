@@ -1,0 +1,156 @@
+import tkinter as tk
+from tkinter import ttk, messagebox
+import requests  # type: ignore
+import time  # Import the time module
+
+class GameDiscountApp:
+    def __init__(self, root):
+        self.root = root
+        self.root.title("Game Discount App")
+        self.root.geometry("600x400")
+
+        # Data game
+        self.games = []
+
+        # UI
+        self.create_widgets()
+
+        # Load data from API
+        self.fetch_games_from_api()
+
+    def create_widgets(self):
+        # Sorting options
+        sort_label = tk.Label(self.root, text="Sort by Discount:")
+        sort_label.pack(pady=5)
+
+        sort_frame = tk.Frame(self.root)
+        sort_frame.pack(pady=5)
+
+        tk.Button(sort_frame, text="Highest", command=lambda: self.sort_games("highest")).pack(side=tk.LEFT, padx=5)
+        tk.Button(sort_frame, text="Lowest", command=lambda: self.sort_games("lowest")).pack(side=tk.LEFT, padx=5)
+
+        # Search input
+        search_label = tk.Label(self.root, text="Search by Discount (%):")
+        search_label.pack(pady=5)
+
+        self.search_var = tk.StringVar()
+        search_entry = tk.Entry(self.root, textvariable=self.search_var)
+        search_entry.pack(pady=5)
+
+        tk.Button(self.root, text="Search", command=self.search_games).pack(pady=5)
+
+        # Game list
+        self.tree = ttk.Treeview(self.root, columns=("Name", "Price", "Discount"), show="headings", height=10)
+        self.tree.heading("Name", text="Name")
+        self.tree.heading("Price", text="Price")
+        self.tree.heading("Discount", text="Discount (%)")
+        self.tree.pack(pady=10, fill=tk.BOTH, expand=True)
+
+        # Label to display the number of games
+        self.count_label = tk.Label(self.root, text="Total games: 0")
+        self.count_label.pack(pady=5)
+
+        # Label to display the running time of operations
+        self.time_label = tk.Label(self.root, text="Operation time: 0.0 seconds")
+        self.time_label.pack(pady=5)
+
+    def update_tree(self, games=None):
+        # Clear existing data
+        for row in self.tree.get_children():
+            self.tree.delete(row)
+
+        # Populate data
+        games = games or self.games
+        for game in games:
+            formatted_price = f"${game['price']:.2f}"  # Format as '$12.34'
+            self.tree.insert("", "end", values=(game["name"], formatted_price, game["discount"]))
+
+        # Update the total count label
+        self.count_label.config(text=f"Total games: {len(games)}")
+
+    def sort_games(self, order):
+        if not self.games:
+            messagebox.showwarning("Warning", "No data to sort.")
+            return
+
+        # Start the timer
+        start_time = time.time()
+
+        if order == "highest":
+            sorted_games = sorted(self.games, key=lambda x: x["discount"], reverse=True)
+        elif order == "lowest":
+            sorted_games = sorted(self.games, key=lambda x: x["discount"])
+
+        # End the timer
+        end_time = time.time()
+        elapsed_time = end_time - start_time
+
+        # Update the tree and show the running time
+        self.update_tree(sorted_games)
+        self.time_label.config(text=f"Operation time: {elapsed_time:.4f} seconds")
+
+    def search_games(self):
+        if not self.games:
+            messagebox.showwarning("Warning", "No data to search.")
+            return
+
+        try:
+            # Start the timer
+            start_time = time.time()
+
+            search_value = int(self.search_var.get())
+            matching_games = [game for game in self.games if game["discount"] == search_value]
+            higher_discount_games = [game for game in self.games if game["discount"] > search_value]
+
+            if matching_games or higher_discount_games:
+                result = matching_games + higher_discount_games
+                self.update_tree(result)
+                if matching_games:
+                    messagebox.showinfo("Result", f"Found {len(matching_games)} game(s) with {search_value}% discount.")
+                else:
+                    messagebox.showinfo(
+                        "Result", f"No games with {search_value}% discount, but {len(higher_discount_games)} have higher discounts."
+                    )
+            else:
+                messagebox.showinfo("Result", "No games found with the specified discount.")
+
+            # End the timer
+            end_time = time.time()
+            elapsed_time = end_time - start_time
+
+            # Update the running time label
+            self.time_label.config(text=f"Operation time: {elapsed_time:.4f} seconds")
+
+        except ValueError:
+            messagebox.showerror("Error", "Please enter a valid discount percentage.")
+
+    def fetch_games_from_api(self):
+        # Example API URL for top 100 games in the last 2 weeks
+        api_url = "http://steamspy.com/api.php"
+        params = {"request": "all"}
+        try:
+            response = requests.get(api_url, params=params)
+            response.raise_for_status()
+            data = response.json()
+
+            self.games = [
+                {
+                    "name": game_data["name"],
+                    "price": float(game_data.get("price", 0))/100,
+                    "discount": int(game_data.get("discount", 0))
+                }
+                for game_id, game_data in data.items()
+                if int(game_data.get("discount", 0)) > 0
+            ]
+            if not self.games:
+                messagebox.showinfo("Info", "No games with discounts found.")
+                return
+
+            self.update_tree()
+        except requests.exceptions.RequestException as e:
+            messagebox.showerror("Error", f"Failed to fetch data: {e}")
+
+if __name__ == "__main__":
+    root = tk.Tk()
+    app = GameDiscountApp(root)
+    root.mainloop()
