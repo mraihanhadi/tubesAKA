@@ -1,38 +1,26 @@
 import streamlit as st
-import requests
 import pandas as pd
 
 api_url= "https://steamspy.com/api.php"
+games = []
 
-def fetch_data():
-    params = {'request': 'all'}
-    response = requests.get(api_url, params=params)
-    if response.status_code == 200:
-        return response.json()
-    else:
-        st.error("Failed to fetch data from SteamSpy API.")
-        return {}
-def process_data(data):
-    games = []
-    for appid, details in data.items():
-        games.append({
-                "Name": details.get('name', 'Unknown'),
-                "Price": float(details.get('price', 0))/100,
-                "Discount (%)": details.get('discount', 0)
-        })
-            
-    return pd.DataFrame(games)
+df = pd.read_excel('PATH')
 
-data = fetch_data()
-
-if data:
-    processedData = process_data(data)
-    if not processedData.empty:
-        st.dataframe(processedData)
-    else:
-        st.warning("No discounted games found.")
-else:
-    st.error("No data available.")
+st.dataframe(df)
+def search_rec(arr,low,high,x,result=None):
+    #algoritma search secara rekursif
+    if result is None:
+        result = []
+    if high >= low:
+        mid = (low + high) //2
+        if arr[mid]['Discount (%)'] >= x:
+            result.append(arr[mid])
+        search_rec(arr,low,mid+1,x)
+        search_rec(arr,mid-1,high,x)
+    return result
+    
+def click_button2():
+    st.session_state.clicked = True
 
 st.header("Aplikasi diskon game")
 
@@ -40,18 +28,16 @@ option = st.selectbox('Select discount: ',('10%','20%','30%','40%','50%','60%','
 
 if 'clicked' not in st.session_state:
     st.session_state.clicked = False
-
-def click_button2():
-    st.session_state.clicked = True
-
-def search_rec():
-    #algoritma search secara rekursif
-    st.write("Hasil search dengan diskon ",option)
-    st.session_state.clicked = False
-
 if st.session_state.clicked:
     #panggil search
-    search_rec()
-
-
+    selected_discount = int(option.strip('%'))
+    games_sorted = sorted(games, key=lambda g: g['Discount (%)'])
+    filtered_games = search_rec(games_sorted, 0, len(games_sorted) - 1, selected_discount)
+    if filtered_games:
+        st.write("Hasil search dengan diskon ",option)
+        filtered_df = pd.DataFrame(filtered_games)
+        st.dataframe(filtered_df)
+    else:
+        st.warning("Tidak ditemukan")
+    st.session_state.clicked = False
 st.button('Search', on_click=click_button2)
