@@ -1,43 +1,43 @@
 import streamlit as st
 import pandas as pd
+import sys
 
-api_url= "https://steamspy.com/api.php"
-games = []
+sys.setrecursionlimit(1100)
 
-df = pd.read_excel('PATH')
+df = pd.read_excel('D:\Tubes Kuliah\Tubes-AKA\steamspy_games_data.xlsx')
+df['price'] = (df['price'])/100
+df['initialprice'] = (df['initialprice'])/100
 
 st.dataframe(df)
-def search_rec(arr,low,high,x,result=None):
+
+def search_rec(games,key,value,n,index=0,result=None):
     #algoritma search secara rekursif
     if result is None:
         result = []
-    if high >= low:
-        mid = (low + high) //2
-        if arr[mid]['Discount (%)'] >= x:
-            result.append(arr[mid])
-        search_rec(arr,low,mid+1,x)
-        search_rec(arr,mid-1,high,x)
-    return result
+    if index >= n:
+        return result
+    if games[index].get(key) >= value:
+        result.append(games[index])
+    return search_rec(games,key,value,n,index+1,result)
     
 def click_button2():
     st.session_state.clicked = True
 
 st.header("Aplikasi diskon game")
 
+
+#search
 option = st.selectbox('Select discount: ',('10%','20%','30%','40%','50%','60%','70%','80%','90%'))
 
+games_list = df.to_dict(orient="records")
 if 'clicked' not in st.session_state:
     st.session_state.clicked = False
 if st.session_state.clicked:
     #panggil search
     selected_discount = int(option.strip('%'))
-    games_sorted = sorted(games, key=lambda g: g['Discount (%)'])
-    filtered_games = search_rec(games_sorted, 0, len(games_sorted) - 1, selected_discount)
-    if filtered_games:
-        st.write("Hasil search dengan diskon ",option)
-        filtered_df = pd.DataFrame(filtered_games)
-        st.dataframe(filtered_df)
-    else:
-        st.warning("Tidak ditemukan")
+    key = 'discount'
+    games = search_rec(games_list,key,selected_discount,len(games_list))
+    gamesdf = pd.DataFrame(games)
+    st.dataframe(gamesdf)
     st.session_state.clicked = False
 st.button('Search', on_click=click_button2)
